@@ -1,5 +1,20 @@
+//=================================================================================================
+// Dvorak keyboard remapping service
+//=================================================================================================
+// This is a modified version of the Dvorak<>QWERTY keyboard remapping service written by Thomas Bocek (https://github.com/tbocek/dvorak).
+//
+// This implementation is backwards to the original. The keyboard layout should be left set to QWERTY and reports as QWERTY to all programs.
+// The operating system must also be configured to disable CAPS LOCK, as this program replaces the CAPS LOCK behaviour.
+//
+// When the CAPS LOCK key is pressed, the keyboard will be set to Dvorak. The LED indicator for CAPS LOCK is also updated to reflect this.
+// If the CAPS LOCK key is pressed again, the keyboard will be set back to QWERTY.
+//
+// When the LCTRL/RCTRL/LALT/LMETA keys are held down before pressing a key the remapping will never take place (the key will always be treated as QWERTY).
+//
+
 /*
  * Copyright 2018 Thomas Bocek
+ * Copyright 2026 Ruby Dennington
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,52 +30,6 @@
  * 
  */
 
-/*
- * Why is this tool useful?
- * ========================
- *
- * Since I type with the "Dvorak" keyboard layout, the shortcuts such
- * as ctrl-c, ctrl-x, or ctrl-v are not comfortable anymore and one of them
- * require two hands to press.
- *
- * Furthermore, applications such as Intellij and Eclipse have their
- * shortcuts, which I'm used to. So for these shortcuts I prefer "Querty".
- * Since there is no way to configure this, I had to intercept the
- * keys and remap the keys from "Dvorak" to "Querty" once CTRL, ALT,
- * WIN or any of those combinations are pressed.
- *
- * With X.org I was relying on the wonderful tool from Kenton Varda,
- * which I modified a bit, to make it work when Numlock is active. Other
- * than that, it worked as expected.
- *
- * And then came Wayland. XGrabKey() works partially with some application
- * but not with others (e.g., gedit is not working). Since XGrabKey() is
- * an X.org function with some support in Wayland, I was looking for a more
- * stable solution. After a quick look to the repo https://github.com/kentonv/dvorak-qwerty
- * I saw that Kenton added a systemtap script to implement the mapping. This
- * scared me a bit to follow that path, so I implemented an other solution
- * based on /dev/uinput. The idea is to read /dev/input, grab keys with
- * EVIOCGRAB, create a virtual device that can emit the keys and pass
- * the keys from /dev/input to /dev/uinput. If CTRL/ALT/WIN is
- * pressed it will map the keys back to "Qwerty".
- *
- * Installation
- * ===========
- *
- * make dvorak
- * //make sure your user belongs to the group "input" -> ls -la /dev/input
- * //this also applies for /dev/uinput -> https://github.com/tuomasjjrasanen/python-uinput/blob/master/udev-rules/40-uinput.rules
- * //start it in startup applications
- *
- * Related Links
- * =============
- * I used the following sites for inspiration:
- * https://www.kernel.org/doc/html/v4.12/input/uinput.html
- * https://www.linuxquestions.org/questions/programming-9/uinput-any-complete-example-4175524044/
- * https://stackoverflow.com/questions/20943322/accessing-keys-from-linux-input-device
- * https://gist.github.com/toinsson/7e9fdd3c908b3c3d3cd635321d19d44d
- *
- */
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -71,8 +40,7 @@
 #include <stdbool.h>
 #include <signal.h>
 
-//a key combination has a maximum amount of 8 characters. That should be enough.
-#define MAX_LENGTH 8
+#define MAX_LENGTH 32
 
 static int fdi;
 static volatile sig_atomic_t keep_running = 1;
@@ -99,79 +67,82 @@ static int modifier_bit(int key) {
     }
 }
 
-//from: https://github.com/kentonv/dvorak-qwerty/tree/master/unix
 static int qwerty2dvorak(int key) {
     switch (key) {
+        // number row
         case KEY_MINUS:
-            return KEY_APOSTROPHE;
+            return KEY_LEFTBRACE;
         case KEY_EQUAL:
             return KEY_RIGHTBRACE;
+        // top row
         case KEY_Q:
-            return KEY_X;
+            return KEY_APOSTROPHE;
         case KEY_W:
             return KEY_COMMA;
         case KEY_E:
-            return KEY_D;
+            return KEY_DOT;
         case KEY_R:
-            return KEY_O;
+            return KEY_P;
         case KEY_T:
-            return KEY_K;
+            return KEY_Y;
         case KEY_Y:
-            return KEY_T;
-        case KEY_U:
             return KEY_F;
-        case KEY_I:
+        case KEY_U:
             return KEY_G;
+        case KEY_I:
+            return KEY_C;
         case KEY_O:
-            return KEY_S;
-        case KEY_P:
             return KEY_R;
+        case KEY_P:
+            return KEY_L;
         case KEY_LEFTBRACE:
-            return KEY_MINUS;
+            return KEY_SLASH;
         case KEY_RIGHTBRACE:
             return KEY_EQUAL;
+        // middle row
         case KEY_A:
             return KEY_A;
         case KEY_S:
-            return KEY_SEMICOLON;
+            return KEY_O;
         case KEY_D:
-            return KEY_H;
+            return KEY_E;
         case KEY_F:
-            return KEY_Y;
-        case KEY_G:
             return KEY_U;
-        case KEY_H:
-            return KEY_J;
-        case KEY_J:
-            return KEY_C;
-        case KEY_K:
-            return KEY_V;
-        case KEY_L:
-            return KEY_P;
-        case KEY_SEMICOLON:
-            return KEY_Z;
-        case KEY_APOSTROPHE:
-            return KEY_Q;
-        case KEY_Z:
-            return KEY_SLASH;
-        case KEY_X:
-            return KEY_B;
-        case KEY_C:
+        case KEY_G:
             return KEY_I;
-        case KEY_V:
-            return KEY_DOT;
-        case KEY_B:
+        case KEY_H:
+            return KEY_D;
+        case KEY_J:
+            return KEY_H;
+        case KEY_K:
+            return KEY_T;
+        case KEY_L:
             return KEY_N;
+        case KEY_SEMICOLON:
+            return KEY_S;
+        case KEY_APOSTROPHE:
+            return KEY_MINUS;
+        // bottom row
+        case KEY_Z:
+            return KEY_SEMICOLON;
+        case KEY_X:
+            return KEY_Q;
+        case KEY_C:
+            return KEY_J;
+        case KEY_V:
+            return KEY_K;
+        case KEY_B:
+            return KEY_X;
         case KEY_N:
-            return KEY_L;
+            return KEY_B;
         case KEY_M:
             return KEY_M;
         case KEY_COMMA:
             return KEY_W;
         case KEY_DOT:
-            return KEY_E;
+            return KEY_V;
         case KEY_SLASH:
-            return KEY_LEFTBRACE;
+            return KEY_Z;
         default:
             return key;
     }
@@ -261,10 +232,6 @@ static void usage(const char *path) {
     fprintf(stderr, "  -m STRING\t\t"
                     "Match only the STRING with the USB device name. \n"
                     "\t\t\tSTRING can contain multiple words, separated by space.\n");
-    fprintf(stderr, "  -t\t\t\t"
-                    "Disable layout toggle feature (press Left-Alt 3 times to switch layout).\n");
-    fprintf(stderr, "  -c\t\t\t"
-                    "Disable caps lock as a modifier.\n\n");
     fprintf(stderr, "example: %s -u -d /dev/input/by-id/usb-Logitech_USB_Receiver-if02-event-kbd -m \"k750 k350\"\n", basename);
 }
 
@@ -274,8 +241,6 @@ int main(int argc, char *argv[]) {
     int opt;
     char *device = NULL,
          *match = NULL;
-    bool noToggle = false,
-         noCapsLockAsModifier = false;
     while ((opt = getopt(argc, argv, "d:m:tc")) != -1) {
         switch (opt) {
             case 'd':
@@ -283,12 +248,6 @@ int main(int argc, char *argv[]) {
                 break;
             case 'm':
                 match = optarg;
-                break;
-            case 't':
-                noToggle = true;
-                break;
-            case 'c':
-                noCapsLockAsModifier = true;
                 break;
             default:
                 usage(argv[0]);
@@ -304,7 +263,7 @@ int main(int argc, char *argv[]) {
     }
 
     //Start the fdi setup
-    fdi = open(device, O_RDONLY);
+    fdi = open(device, O_RDWR);
     if (fdi < 0) {
         fprintf(stderr, "Error: Failed to open device [%s]: %s.\n", device, strerror(errno));
         fprintf(stderr, "Hint: Check if the device path is correct and you have the necessary permissions.\n");
@@ -477,13 +436,18 @@ int main(int argc, char *argv[]) {
     }
 
     struct input_event ev = {0};
-    int l_alt =0,
+    int //l_alt =0,
         mod_state = 0,
-        array_qwerty_counter = 0;
+        array_dvorak_counter = 0;
     bool disable_mapping = false;
-    unsigned int array_qwerty[MAX_LENGTH] = {0};
+    unsigned int array_dvorak[MAX_LENGTH] = {0};
+    char leds = 0;
+    bool is_dvoraking = true;
 
-    fprintf(stderr, "Staring event loop with keyboard: [%s] for device [%s].\n", keyboard_name, device);
+    fprintf(stderr, "Starting event loop with keyboard: [%s] for device [%s].\n", keyboard_name, device);
+
+    fprintf(stderr, "Setting initial keyboard LED state\n");
+    emit(fdi, EV_LED, 1, is_dvoraking, ev.time);
 
     while (keep_running) {
         ssize_t n = read(fdi, &ev, sizeof ev);
@@ -495,6 +459,20 @@ int main(int argc, char *argv[]) {
             break;
         }
 
+        if (ev.type == EV_KEY && ev.code == KEY_CAPSLOCK && ev.value == 1) {
+            is_dvoraking = !is_dvoraking;
+        }
+        if ((ev.type == EV_KEY && ev.code == KEY_CAPSLOCK) || ev.type == EV_LED) {
+            // after capslock press or LED change we have to update the caps lock LED value to actually be correct.
+            ioctl(fdi, EVIOCGLED(1), &leds);
+            //fprintf(stdout, "type %d code %d key %d\n", ev.type, ev.code, leds);
+            if (((leds & 2) == 2) != is_dvoraking) {
+                emit(fdi, EV_LED, 1, is_dvoraking, ev.time);
+            }
+        }
+        //fprintf(stdout, "type %d code %d\n", ev.type, ev.code);
+
+        /*
         if (!noToggle && ev.code == KEY_LEFTALT) {
             if (ev.value == 1 && ++l_alt >= 3) {
                 disable_mapping = !disable_mapping;
@@ -504,11 +482,11 @@ int main(int argc, char *argv[]) {
         } else if (ev.type == EV_KEY) {
             l_alt = 0;
         }
+        */
 
-        if(!disable_mapping && ev.type == EV_KEY) {
+        if(ev.type == EV_KEY) {
             int mod_current = modifier_bit(ev.code);
-
-            if(noCapsLockAsModifier && mod_current == modifier_bit(KEY_CAPSLOCK)) {
+            if(mod_current == modifier_bit(KEY_CAPSLOCK)) {
                 mod_current = 0;
             }
 
@@ -522,20 +500,20 @@ int main(int argc, char *argv[]) {
                 }
             }
 
-            int qwerty_code = qwerty2dvorak(ev.code);
-            if (ev.code != qwerty_code) {
+            int dvorak_code = qwerty2dvorak(ev.code);
+            if (ev.code != dvorak_code) {
                 //pressed key
                 if (ev.value == 1) {
-                    //modifier pressed
-                    if(mod_state > 0) {
-                        if (array_qwerty_counter == MAX_LENGTH) {
+                    //modifier not pressed
+                    if(mod_state == 0 && is_dvoraking && !disable_mapping) {
+                        if (array_dvorak_counter == MAX_LENGTH) {
                             printf("warning, too many keys pressed: %d. %s 0x%04x (%d), arr:%d\n",
                                 MAX_LENGTH, ev.value == 1 ? "pressed" : "released", (int) ev.code, (int) ev.code,
-                                array_qwerty_counter);
+                                array_dvorak_counter);
                         } else {
-                            array_qwerty[array_qwerty_counter++] = qwerty_code;
-                            //remap to qwerty - press key
-                            emit(fdo, ev.type, qwerty_code, ev.value, ev.time);
+                            array_dvorak[array_dvorak_counter++] = dvorak_code;
+                            //remap to dvorak - press key
+                            emit(fdo, ev.type, dvorak_code, ev.value, ev.time);
                         }
                     } else {
                         //no modifier
@@ -544,15 +522,15 @@ int main(int argc, char *argv[]) {
                 } else if(ev.value == 2) {
                     //repeating button
                     bool is_in_array = false;
-                    for (int i = 0; i < array_qwerty_counter; i++) {
-                        if (array_qwerty[i] == qwerty_code) {
+                    for (int i = 0; i < array_dvorak_counter; i++) {
+                        if (array_dvorak[i] == dvorak_code) {
                             is_in_array = true;
                             break;
                         }
                     }
                     if(is_in_array) {
-                        //this is a repeating qwerty
-                        emit(fdo, ev.type, qwerty_code, ev.value, ev.time);
+                        //this is a repeating dvorak
+                        emit(fdo, ev.type, dvorak_code, ev.value, ev.time);
                     } else {
                         //not in the array, regular key
                         emit(fdo, ev.type, ev.code, ev.value, ev.time);
@@ -560,25 +538,25 @@ int main(int argc, char *argv[]) {
                 } else if(ev.value == 0) {
                     //release the key
                     bool need_emit = false;
-                    for (int i = 0; i < array_qwerty_counter; i++) {
-                        if (array_qwerty[i] == qwerty_code) {
-                            array_qwerty[i] = 0;
+                    for (int i = 0; i < array_dvorak_counter; i++) {
+                        if (array_dvorak[i] == dvorak_code) {
+                            array_dvorak[i] = 0;
                             need_emit = true;
                             break;
                         }
                     }
                     if(need_emit) {
                         int last_nonzero = -1;
-                        for (int i = 0; i < array_qwerty_counter; i++) {
-                            if (array_qwerty[i] != 0) {
+                        for (int i = 0; i < array_dvorak_counter; i++) {
+                            if (array_dvorak[i] != 0) {
                                 last_nonzero = i;
                             }
                         }
-                        array_qwerty_counter = last_nonzero + 1;
-                        //remap to qwerty - release key
-                        emit(fdo, ev.type, qwerty_code, ev.value, ev.time);
+                        array_dvorak_counter = last_nonzero + 1;
+                        //remap to dvorak - release key
+                        emit(fdo, ev.type, dvorak_code, ev.value, ev.time);
                     } else {
-                        //regular dvorak key
+                        //regular qwerty key
                         emit(fdo, ev.type, ev.code, ev.value, ev.time);
                     }
                 } else {
@@ -586,7 +564,7 @@ int main(int argc, char *argv[]) {
                     emit(fdo, ev.type, ev.code, ev.value, ev.time);
                 }
             } else {
-                //regular dvorak key
+                //regular qwerty key
                 emit(fdo, ev.type, ev.code, ev.value, ev.time);
             }
         } else {
