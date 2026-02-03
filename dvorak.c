@@ -232,6 +232,9 @@ static void usage(const char *path) {
     fprintf(stderr, "  -m STRING\t\t"
                     "Match only the STRING with the USB device name. \n"
                     "\t\t\tSTRING can contain multiple words, separated by space.\n");
+    fprintf(stderr, "  -l\t\t\t"
+                    "Toggle state of a dummy LED on every key press\n"
+                    "\t\t\t(works around LED turning itself off on some keyboards)\n");
     fprintf(stderr, "example: %s -u -d /dev/input/by-id/usb-Logitech_USB_Receiver-if02-event-kbd -m \"k750 k350\"\n", basename);
 }
 
@@ -241,13 +244,17 @@ int main(int argc, char *argv[]) {
     int opt;
     char *device = NULL,
          *match = NULL;
-    while ((opt = getopt(argc, argv, "d:m:tc")) != -1) {
+    bool use_dummy_led = false;
+    while ((opt = getopt(argc, argv, "d:m:l")) != -1) {
         switch (opt) {
             case 'd':
                 device = optarg;
                 break;
             case 'm':
                 match = optarg;
+                break;
+            case 'l':
+                use_dummy_led = true;
                 break;
             default:
                 usage(argv[0]);
@@ -441,8 +448,8 @@ int main(int argc, char *argv[]) {
         array_dvorak_counter = 0;
     bool disable_mapping = false;
     unsigned int array_dvorak[MAX_LENGTH] = {0};
-    char leds = 0;
     bool is_dvoraking = true;
+    bool dummy_led_flag = false;
 
     fprintf(stderr, "Starting event loop with keyboard: [%s] for device [%s].\n", keyboard_name, device);
 
@@ -462,15 +469,16 @@ int main(int argc, char *argv[]) {
         if (ev.type == EV_KEY && ev.code == KEY_CAPSLOCK && ev.value == 1) {
             is_dvoraking = !is_dvoraking;
         }
-        if ((ev.type == EV_KEY && ev.code == KEY_CAPSLOCK) || ev.type == EV_LED) {
-            // after capslock press or LED change we have to update the caps lock LED value to actually be correct.
-            ioctl(fdi, EVIOCGLED(1), &leds);
-            //fprintf(stdout, "type %d code %d key %d\n", ev.type, ev.code, leds);
-            if (((leds & 2) == 2) != is_dvoraking) {
+        if (use_dummy_led) {
+            if ((ev.type == EV_KEY && ev.value == 1) || (ev.type == EV_LED && ev.code != 3)) {
+                // if a key is pressed then we should update the LED
                 emit(fdi, EV_LED, 1, is_dvoraking, ev.time);
+                emit(fdi, EV_LED, 3, dummy_led_flag, ev.time); // alternate an unused LED as well to force refresh (specifically the sun microsystems compose LED). there might be a nicer way to do this, idk
+                dummy_led_flag = !dummy_led_flag;
             }
+        } else if ((ev.type == EV_KEY && ev.code == KEY_CAPSLOCK) || ev.type == EV_LED) {
+            emit(fdi, EV_LED, 1, is_dvoraking, ev.time);
         }
-        //fprintf(stdout, "type %d code %d\n", ev.type, ev.code);
 
         /*
         if (!noToggle && ev.code == KEY_LEFTALT) {
