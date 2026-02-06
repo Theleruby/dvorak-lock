@@ -467,6 +467,13 @@ int main(int argc, char *argv[]) {
             break;
         }
 
+        int code_to_emit = ev.code;
+        if (ev.type == EV_KEY && ev.code == KEY_SCROLLLOCK) {
+            code_to_emit = KEY_KATAKANA;
+        } else if (ev.type == EV_KEY && ev.code == KEY_CAPSLOCK) {
+            code_to_emit = KEY_HIRAGANA;
+        }
+
         if (ev.type == EV_KEY && ev.code == KEY_SCROLLLOCK && ev.value == 1) {
             is_dvoraking = !is_dvoraking;
         }
@@ -520,7 +527,7 @@ int main(int argc, char *argv[]) {
                         }
                     } else {
                         //no modifier
-                        emit(fdo, ev.type, ev.code, ev.value, ev.time);
+                        emit(fdo, ev.type, code_to_emit, ev.value, ev.time);
                     }
                 } else if(ev.value == 2) {
                     //repeating button
@@ -536,7 +543,7 @@ int main(int argc, char *argv[]) {
                         emit(fdo, ev.type, dvorak_code, ev.value, ev.time);
                     } else {
                         //not in the array, regular key
-                        emit(fdo, ev.type, ev.code, ev.value, ev.time);
+                        emit(fdo, ev.type, code_to_emit, ev.value, ev.time);
                     }
                 } else if(ev.value == 0) {
                     //release the key
@@ -560,19 +567,19 @@ int main(int argc, char *argv[]) {
                         emit(fdo, ev.type, dvorak_code, ev.value, ev.time);
                     } else {
                         //regular qwerty key
-                        emit(fdo, ev.type, ev.code, ev.value, ev.time);
+                        emit(fdo, ev.type, code_to_emit, ev.value, ev.time);
                     }
                 } else {
                     //this should not happen
-                    emit(fdo, ev.type, ev.code, ev.value, ev.time);
+                    emit(fdo, ev.type, code_to_emit, ev.value, ev.time);
                 }
             } else {
                 //regular qwerty key
-                emit(fdo, ev.type, ev.code, ev.value, ev.time);
+                emit(fdo, ev.type, code_to_emit, ev.value, ev.time);
             }
         } else {
             //non regular key
-            emit(fdo, ev.type, ev.code, ev.value, ev.time);
+            emit(fdo, ev.type, code_to_emit, ev.value, ev.time);
         }
     }
     close(fdi);
