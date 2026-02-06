@@ -491,12 +491,6 @@ int main(int argc, char *argv[]) {
         if(ev.type == EV_KEY) {
             if(ev.code == KEY_CAPSLOCK) {
                 is_capslock_held = ev.value != 0;
-                // completely skip this key, don't send it to the OS at all
-                continue;
-            }
-            else if (ev.code == KEY_SCROLLLOCK) {
-                // completely skip this key, don't send it to the OS at all
-                continue;
             }
 
             int mod_current = modifier_bit(ev.code);
