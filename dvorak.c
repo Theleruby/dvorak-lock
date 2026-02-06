@@ -236,6 +236,8 @@ static void usage(const char *path) {
     fprintf(stderr, "  -l\t\t\t"
                     "Toggle state of a dummy LED on every key press\n"
                     "\t\t\t(works around LED turning itself off on some keyboards)\n");
+    fprintf(stderr, "  -t\t\t\t"
+                    "Enable enter toggle mode feature\n");
     fprintf(stderr, "example: %s -u -d /dev/input/by-id/usb-Logitech_USB_Receiver-if02-event-kbd -m \"k750 k350\"\n", basename);
 }
 
@@ -246,7 +248,8 @@ int main(int argc, char *argv[]) {
     char *device = NULL,
          *match = NULL;
     bool use_dummy_led = false;
-    while ((opt = getopt(argc, argv, "d:m:l")) != -1) {
+    bool use_enter_toggle_mode_feature = false;
+    while ((opt = getopt(argc, argv, "d:m:lt")) != -1) {
         switch (opt) {
             case 'd':
                 device = optarg;
@@ -256,6 +259,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'l':
                 use_dummy_led = true;
+                break;
+            case 't':
+                use_enter_toggle_mode_feature = true;
                 break;
             default:
                 usage(argv[0]);
@@ -450,6 +456,7 @@ int main(int argc, char *argv[]) {
     unsigned int array_dvorak[MAX_LENGTH] = {0};
     bool is_dvoraking = true;
     bool is_capslock_held = false;
+    bool is_enter_toggle_mode = false;
     bool dummy_led_flag = false;
 
     fprintf(stderr, "Starting event loop with keyboard: [%s] for device [%s].\n", keyboard_name, device);
@@ -475,7 +482,42 @@ int main(int argc, char *argv[]) {
         }
 
         if (ev.type == EV_KEY && ev.code == KEY_SCROLLLOCK && ev.value == 1) {
-            is_dvoraking = !is_dvoraking;
+            if (use_enter_toggle_mode_feature) {
+                if ((mod_state & 1) == 1 || (mod_state & 2) == 2) { // is CTRL held
+                    // dvorak on
+                    is_dvoraking = true;
+                    is_enter_toggle_mode = false;
+                } else if ((mod_state & 4) == 4) { // is left ALT held
+                    // dvorak off
+                    is_dvoraking = false;
+                    is_enter_toggle_mode = false;
+                } else if ((mod_state & 8) == 8 || (mod_state & 16) == 16) { // is Windows logo key held
+                    // enter toggle mode
+                    is_dvoraking = false;
+                    is_enter_toggle_mode = true;
+                /*
+                } else if (is_enter_toggle_mode) {
+                    // disable enter toggle mode, turn dvorak on
+                    is_dvoraking = true;
+                    is_enter_toggle_mode = false;
+                */
+                } else {
+                    // invert current state
+                    is_dvoraking = !is_dvoraking;
+                    //is_enter_toggle_mode = false;
+                }
+            } else {
+                is_dvoraking = !is_dvoraking;
+                is_enter_toggle_mode = false;
+            }
+        }
+        if (is_enter_toggle_mode && ev.type == EV_KEY && ev.value == 1) {
+            // enter toggle mode. pressing enter toggles dvorak state. pressing esc cancels.
+            if (ev.code == KEY_ENTER) {
+                is_dvoraking = !is_dvoraking;
+            } else if (ev.code == KEY_ESC) {
+                is_dvoraking = false;
+            }
         }
         if (use_dummy_led) {
             if ((ev.type == EV_KEY && ev.value == 1) || (ev.type == EV_LED && ev.code != 3)) {
@@ -494,6 +536,7 @@ int main(int argc, char *argv[]) {
             }
 
             int mod_current = modifier_bit(ev.code);
+
             if (mod_current > 0) {
                 if (ev.value != 0) {
                     //set mod state when either 1 (key press), or 2 (repeat)
