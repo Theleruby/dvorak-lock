@@ -1,10 +1,16 @@
 # "Dvorak Lock" for Linux
 
-This is a modified version of the Dvorak<>QWERTY keyboard remapping service written by Thomas Bocek (https://github.com/tbocek/dvorak). The primary intention is to replace Caps Lock with a "Dvorak Lock" so that Dvorak layout can easily be toggled on/off by pressing the Caps Lock key, and the Caps Lock indicator will light up appropriately to indicate that the Dvorak Lock is turned on.
+This is a modified version of the Dvorak<>QWERTY keyboard remapping service written by Thomas Bocek (https://github.com/tbocek/dvorak). The primary intention is to implement both a "Dvorak Shift" and a "Dvorak Lock" which get overlayed on top of a US or UK QWERTY layout.
 
-If the LCTRL / RCTRL / LALT / LMETA keys are held down before pressing a key, the remapping will not take place (the key will be treated as QWERTY).
+The "Dvorak Lock" is toggled by pressing Scroll Lock. While enabled, the keyboard gets remapped to Dvorak. While disabled, the keyboard stays as QWERTY.
 
-This remapping service has been tested with Fedora Kinoite 43 and probably works on any Linux distro.
+The "Dvorak Shift" feature is activated by holding Caps Lock down. This lock state will be inverted while the key is held. If you hold Caps Lock while in QWERTY mode, you get Dvorak. If you hold Caps Lock while in Dvorak mode, you get QWERTY.
+
+The 'Caps Lock' indicator is used to indicate the state of the Dvorak Lock (it might have made more sense to use the Scroll Lock indicator, but neither my Logitech keyboard nor my gaming laptop have one - a lot of keyboards don't these days!)
+
+If the LCTRL / RCTRL / LALT / LMETA / RMETA keys are held down before pressing a key, the remapping will not take place (the key will always be treated as QWERTY).
+
+This remapping service has been tested with Fedora Kinoite 43 along with several variants of it. It should work on any modern Linux distro.
 
 ## How to run / install
 

@@ -6,10 +6,11 @@
 // This implementation is backwards to the original. The keyboard layout should be left set to QWERTY and reports as QWERTY to all programs.
 // The operating system must also be configured to disable CAPS LOCK, as this program replaces the CAPS LOCK behaviour.
 //
-// When the CAPS LOCK key is pressed, the keyboard will be set to Dvorak. The LED indicator for CAPS LOCK is also updated to reflect this.
-// If the CAPS LOCK key is pressed again, the keyboard will be set back to QWERTY.
+// Pressing SCROLL LOCK toggles a 'Dvorak Lock' mode on/off. While the lock mode is enabled, the keyboard is remapped to Dvorak.
+// Holding CAPS LOCK will make the keyboard behave as though the opposite lock state is being used.
+// The LED indicator for CAPS LOCK is used to indicate the current lock state.
 //
-// When the LCTRL/RCTRL/LALT/LMETA keys are held down before pressing a key the remapping will never take place (the key will always be treated as QWERTY).
+// When the LCTRL/RCTRL/LALT/LMETA/RMETA keys are held down before pressing a key the remapping will never take place (the key will always be treated as QWERTY).
 //
 
 /*
@@ -60,7 +61,7 @@ static int modifier_bit(int key) {
             return 4;
         case KEY_LEFTMETA:
             return 8;
-        case KEY_CAPSLOCK:
+        case KEY_RIGHTMETA:
             return 16;
         default:
             return 0;
@@ -443,12 +444,12 @@ int main(int argc, char *argv[]) {
     }
 
     struct input_event ev = {0};
-    int //l_alt =0,
-        mod_state = 0,
+    int mod_state = 0,
         array_dvorak_counter = 0;
     bool disable_mapping = false;
     unsigned int array_dvorak[MAX_LENGTH] = {0};
     bool is_dvoraking = true;
+    bool is_capslock_held = false;
     bool dummy_led_flag = false;
 
     fprintf(stderr, "Starting event loop with keyboard: [%s] for device [%s].\n", keyboard_name, device);
@@ -466,7 +467,7 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        if (ev.type == EV_KEY && ev.code == KEY_CAPSLOCK && ev.value == 1) {
+        if (ev.type == EV_KEY && ev.code == KEY_SCROLLLOCK && ev.value == 1) {
             is_dvoraking = !is_dvoraking;
         }
         if (use_dummy_led) {
@@ -480,24 +481,16 @@ int main(int argc, char *argv[]) {
             emit(fdi, EV_LED, 1, is_dvoraking, ev.time);
         }
 
-        /*
-        if (!noToggle && ev.code == KEY_LEFTALT) {
-            if (ev.value == 1 && ++l_alt >= 3) {
-                disable_mapping = !disable_mapping;
-                l_alt = 0;
-                fprintf(stdout, "mapping is set to [%s]\n", !disable_mapping ? "true" : "false");
-            }
-        } else if (ev.type == EV_KEY) {
-            l_alt = 0;
-        }
-        */
-
         if(ev.type == EV_KEY) {
-            int mod_current = modifier_bit(ev.code);
-            if(mod_current == modifier_bit(KEY_CAPSLOCK)) {
-                mod_current = 0;
+            if(ev.code == KEY_CAPSLOCK) {
+                is_capslock_held = ev.value != 0;
+            }
+            else if (ev.code == KEY_SCROLLLOCK) {
+                // completely skip this key, don't send it to the OS at all
+                continue;
             }
 
+            int mod_current = modifier_bit(ev.code);
             if (mod_current > 0) {
                 if (ev.value != 0) {
                     //set mod state when either 1 (key press), or 2 (repeat)
@@ -513,7 +506,7 @@ int main(int argc, char *argv[]) {
                 //pressed key
                 if (ev.value == 1) {
                     //modifier not pressed
-                    if(mod_state == 0 && is_dvoraking && !disable_mapping) {
+                    if(mod_state == 0 && (is_dvoraking != is_capslock_held) && !disable_mapping) {
                         if (array_dvorak_counter == MAX_LENGTH) {
                             printf("warning, too many keys pressed: %d. %s 0x%04x (%d), arr:%d\n",
                                 MAX_LENGTH, ev.value == 1 ? "pressed" : "released", (int) ev.code, (int) ev.code,
