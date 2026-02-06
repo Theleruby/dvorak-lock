@@ -513,7 +513,7 @@ int main(int argc, char *argv[]) {
         }
         if (is_enter_toggle_mode && ev.type == EV_KEY && ev.value == 1) {
             // enter toggle mode. pressing enter toggles dvorak state. pressing esc cancels.
-            if (ev.code == KEY_ENTER) {
+            if (ev.code == KEY_ENTER || ev.code == KEY_KPENTER) {
                 is_dvoraking = !is_dvoraking;
             } else if (ev.code == KEY_ESC) {
                 is_dvoraking = false;
